@@ -3,7 +3,7 @@
 This is the official implementation of "Relation-aware Temporal Reasoning for Tensor-based Knowledge Graph Completion". 
 
 ## Overeview of Tirano
-![Overview](Tirano.png)
+![Overview](tirano.png)
 
 ## Abstract
 
