@@ -162,7 +162,7 @@ if __name__ == '__main__':
     test_loader = DataLoader(test_data, batch_size=args.batch_size, collate_fn=collate_wrapper,
                              pin_memory=False, shuffle=True)
 
-    alpha_file = "relation2alpha_14.pkl"  
+    alpha_file = "./dataset/icews14/relation2alpha_14.pkl"  
     try:
         with open(alpha_file, 'rb') as fr:
             relation2alpha = pickle.load(fr)
