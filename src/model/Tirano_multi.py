@@ -45,7 +45,7 @@ def masked_mean_time(y: torch.Tensor, mask_t: torch.Tensor) -> torch.Tensor:
     return s
 
 
-# ------------------------------- Time Encoding (for GNN branch) -------------------------------
+# ------------------------------- Time Encoding -------------------------------
 class TimeEncode(nn.Module):
     """Simple harmonic time encoding (cosine banks)."""
     def __init__(self, expand_dim: int):
@@ -193,7 +193,6 @@ class Tirano(nn.Module):
                  beta: float = 1.0,
                  slice_temp: float = 2.0,
                  learn_slice_temp: bool = False,
-                 # GNN path
                  time_pe_dim: int = 4,
                  w_clip: float = None,
                  # hr bottleneck
@@ -276,7 +275,7 @@ class Tirano(nn.Module):
         self.proj_f = nn.Linear(cnn_out_dim, embed_dim)
         self.dropout = nn.Dropout(p=dropout)
 
-        # ---------------- GNN Aggregation Path ----------------
+        # ---------------- Aggregation Path ----------------
         self.time_encoder  = TimeEncode(expand_dim=time_pe_dim)
         self.node_emb_proj = nn.Linear(embed_dim + time_pe_dim, embed_dim)
 
