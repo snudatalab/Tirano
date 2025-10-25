@@ -20,7 +20,7 @@ We recommend using the following versions of packages:
 - scipy==1.10.1
 
 ## Data Overview
-We utilize six financial datasets covering different stock markets. To get started, download each dataset from the provided official links.
+We utilize four benchmark datasets for TKGC. To get started, download each dataset from the provided official links.
 |        **Dataset**        |                  **Link**                   |
 |:-------------------------:|:-------------------------------------------:|
 |       **ICEWS14**        |           `https://dataverse.harvard.edu/dataverse/icews`           |
