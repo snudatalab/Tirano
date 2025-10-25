@@ -24,7 +24,7 @@ We utilize six financial datasets covering different stock markets. To get start
 |        **Dataset**        |                  **Link**                   |
 |:-------------------------:|:-------------------------------------------:|
 |       **ICEWS14**        |           `https://dataverse.harvard.edu/dataverse/icews`           |
-|       **ICEWS18**        |           `https://dataverse.harvard.edu/dataverse/icews}`           |
+|       **ICEWS18**        |           `https://dataverse.harvard.edu/dataverse/icews`           |
 |       **ICEWS05-15**        |           `https://dataverse.harvard.edu/dataverse/icews`           |
 |       **GDELT**        |           `https://www.gdeltproject.org/`           |
 
