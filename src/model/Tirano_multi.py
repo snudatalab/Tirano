@@ -227,7 +227,7 @@ class SparseSTTemporalEncoder1D(nn.Module):
 
 # ------------------------------- Main Model -------------------------------
 class Tirano(nn.Module):
-        """
+    """
     Tirano model.
 
     Summary:
