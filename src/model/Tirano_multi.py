@@ -35,9 +35,14 @@ def masked_mean_ter(y: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
 
 def masked_mean_time(y: torch.Tensor, mask_t: torch.Tensor) -> torch.Tensor:
     """
-    y      : (P, C, T)
-    mask_t : (P, 1, T) in {0,1}
-    return : (P, C) masked average over time
+    Compute masked average over time dimension.
+
+    Args:
+        y: Tensor of shape (P, C, T).
+        mask_t: Binary mask of shape (P, 1, T) with {0,1}.
+
+    Returns:
+        Tensor of shape (P, C): masked mean across time.
     """
     mask_t = mask_t.to(y.dtype)
     denom = mask_t.sum(dim=2).clamp_min(1.0)        # (P,1)
@@ -62,8 +67,14 @@ class TimeEncode(nn.Module):
 
     def forward(self, ts: torch.Tensor) -> torch.Tensor:
         """
-        ts : (N,) float tensor (e.g., Δt)
-        return: (N, d_pe)
+        Forward pass.
+
+        Args:
+            ts: 1D tensor of shape (N,) containing time deltas.
+
+        Returns:
+            Tensor of shape (N, expand_dim) with cosine features.
+            Returns zeros if expand_dim == 0.
         """
         if self.expand_dim == 0:
             return ts.new_zeros((ts.shape[0], 0))
@@ -77,9 +88,24 @@ class TimeEncode(nn.Module):
 # ------------------------------- Dense 3D ST-Temporal Encoder (legacy) -------------------------------
 class STTemporalEncoder(nn.Module):
     """
-    Depthwise(time-only) + Pointwise 3D conv blocks stacked.
-    Input : (B, C_in, T, E, R)
-    Output: (B, C_out, T, E, R)
+    3D temporal encoder over a dense (T, E, R) grid.
+
+    Block:
+        Depthwise time-only Conv3d + pointwise Conv3d, repeated L times.
+
+    Args:
+        c_in: Input channels.
+        c_out: Output channels.
+        k_t: Temporal kernel size (odd only).
+        L: Number of stacked depthwise+pointwise blocks.
+        dilations: List of temporal dilations per block (len == L).
+
+    Input:
+        x: (B, C_in, T, E, R)
+        mask (optional): (B, 1, T, E, R) in {0,1}
+
+    Output:
+        (B, C_out, T, E, R)
     """
     def __init__(self, c_in: int, c_out: int, k_t: int = 3, L: int = 2, dilations=None):
         super().__init__()
@@ -105,6 +131,14 @@ class STTemporalEncoder(nn.Module):
         self.out_pw = nn.Conv3d(in_channels=c_in, out_channels=c_out, kernel_size=1)
 
     def forward(self, x, mask=None):  # x: (B, C_in, T, E, R), mask: (B,1,T,E,R)
+        """
+        Args:
+            x: Tensor (B, C_in, T, E, R).
+            mask: Optional binary mask (B, 1, T, E, R).
+
+        Returns:
+            Tensor (B, C_out, T, E, R) with masked positions zeroed if mask is given.
+        """
         orig_dtype = x.dtype
         if torch.is_autocast_enabled():
             with autocast(enabled=False):
@@ -133,9 +167,24 @@ class STTemporalEncoder(nn.Module):
 # ------------------------------- Sparse (Pairs×Time) ST-Temporal Encoder (fast path) -------------------------------
 class SparseSTTemporalEncoder1D(nn.Module):
     """
-    Depthwise 1D Conv (groups=C_in) + Pointwise 1D Conv over time sequences.
-    Input : (P, C_in, T)  -- P = #unique (b,e,r) pairs that actually occurred
-    Output: (P, C_out, T)
+    Sparse temporal encoder over (pair, time) sequences.
+
+    Design:
+        Depthwise Conv1d (groups=C_in) along time + pointwise Conv1d.
+
+    Args:
+        c_in: Input channels.
+        c_out: Output channels.
+        k_t: Temporal kernel size (odd only).
+        L: Number of depthwise+pointwise stages.
+        dilations: List of temporal dilations per stage.
+        dropout: Dropout rate after final 1×1 Conv1d.
+
+    Input:
+        x: (P, C_in, T) where P = number of unique (b, e_slot, r_slot) pairs.
+
+    Output:
+        (P, C_out, T)
     """
     def __init__(self, c_in: int, c_out: int, k_t: int = 3, L: int = 2, dilations=None, dropout: float = 0.0):
         super().__init__()
@@ -156,6 +205,13 @@ class SparseSTTemporalEncoder1D(nn.Module):
         self.drop = nn.Dropout(p=dropout) if dropout > 0 else nn.Identity()
 
     def forward(self, x):  # x: (P, C_in, T)
+        """
+        Args:
+            x: Tensor (P, C_in, T).
+
+        Returns:
+            Tensor (P, C_out, T).
+        """
         orig_dtype = x.dtype
         if torch.is_autocast_enabled():
             with autocast(enabled=False):
@@ -171,7 +227,18 @@ class SparseSTTemporalEncoder1D(nn.Module):
 
 # ------------------------------- Main Model -------------------------------
 class Tirano(nn.Module):
+        """
+    Tirano model.
 
+    Summary:
+        - Sparse (pair×time) temporal path with lightweight 1D separable conv (default).
+        - Optional dense 3D (T,E,R) grid path for legacy compatibility.
+        - Simple neighbor feature aggregation with time-aware features.
+        - Flexible decoders: DistMult / ComplEx / Bi-Quaternion.
+
+    Notes:
+        Implementation follows the original training/inference behavior exactly.
+    """
     def __init__(self,
                  nf,
                  embed_dim: int,
@@ -392,7 +459,16 @@ class Tirano(nn.Module):
 
     # ----------------------------------------------------
     def _build_alpha_table(self, num_rel: int, r2a: dict) -> torch.Tensor:
-        """Precompute α for every relation id with robust inverse mapping."""
+        """
+        Build per-relation alpha lookup.
+
+        Args:
+            num_rel: Number of relations.
+            r2a: Dict mapping relation id -> alpha.
+
+        Returns:
+            Tensor (num_rel,) of alphas with inverse mapping propagation.
+        """
         base = num_rel // 2 if (num_rel % 2 == 0) else None
         alpha = [0.01] * num_rel
         for k, v in (r2a or {}).items():
@@ -408,8 +484,14 @@ class Tirano(nn.Module):
     # ----------------------------------------------------
     def _compute_slice_weights(self, r_q_vec: torch.Tensor, T: int) -> torch.Tensor:
         """
-        r_q_vec: (B,)
-        returns: (B, T) slice weights BEFORE normalization by n[τ]
+        Compute soft weights over T temporal slices for each query relation.
+
+        Args:
+            r_q_vec: Tensor (B,) relation ids per query.
+            T: Number of time bins (slices).
+
+        Returns:
+            Tensor (B, T): unnormalized slice weights before within-slice normalization.
         """
         device = r_q_vec.device
         L = -self.m
@@ -433,8 +515,16 @@ class Tirano(nn.Module):
     def _assign_slots_firstk(self, b_t: torch.Tensor, ids_t: torch.Tensor,
                              budget: int, id_bound: int) -> torch.Tensor:
         """
-        Assign compact [0..budget-1] slots per-batch in first-appearance order.
-        Others -> slot == budget (i.e., 'others' bucket).
+        Assign compact slots per-batch by first-appearance order.
+
+        Args:
+            b_t: Tensor (N,) batch ids per event.
+            ids_t: Tensor (N,) raw ids (entity or relation).
+            budget: Max number of explicit slots; others map to 'budget'.
+            id_bound: Upper bound for id to stabilize hashing.
+
+        Returns:
+            Tensor (N,) of slot indices in [0..budget] (budget means "others").
         """
         if budget <= 0:
             return torch.zeros_like(ids_t)
@@ -475,8 +565,18 @@ class Tirano(nn.Module):
     def _sparse_temporal_context_fast(self, batch, B, ent_arr, rel_arr, dt_arr, b_idx,
                                       max_E=50, max_R=50, w_i: torch.Tensor = None):
         """
-        {pair,time) sequecne -> 3D-Conv.
-        return: (B, D)
+        Build sparse (pair,time) sequences and encode them with 1D temporal CNN.
+
+        Args:
+            batch: Batch object (used for relation ids of queries).
+            B: Batch size.
+            ent_arr, rel_arr, dt_arr: Flattened neighbor arrays (numpy).
+            b_idx: Batch indices aligned with flattened arrays (numpy).
+            max_E, max_R: Slot budgets for entities and relations.
+            w_i: Tensor (TN,) per-neighbor weights.
+
+        Returns:
+            Tensor (B, D): temporal context features per query.
         """
         assert w_i is not None, "w_i is required."
 
@@ -623,7 +723,19 @@ class Tirano(nn.Module):
     def _build_snapshot_grid_fast(self, batch, B, ent_arr, rel_arr, dt_arr, b_idx,
                                   max_E=20, max_R=20, w_i: torch.Tensor = None):
         """
-        ER-grid (B, C_in, T, E, R) construct.
+        Construct dense ER-grid and slice weights.
+
+        Args:
+            batch: Batch object with query relations.
+            B: Batch size.
+            ent_arr, rel_arr, dt_arr: Flattened neighbor arrays (numpy).
+            b_idx: Batch indices aligned with flattened arrays (numpy).
+            max_E, max_R: Slot budgets for entities and relations.
+            w_i: Tensor (TN,) per-neighbor weights.
+
+        Returns:
+            grid: Tensor (B, C_in, T, E, R) with slice-normalized updates.
+            mask: Tensor (B, 1, T, E, R) indicating filled cells.
         """
         assert w_i is not None, "w_i is required for within-slice normalization"
 
