@@ -30,11 +30,19 @@ We utilize four benchmark datasets for TKGC. To get started, download each datas
 |       **GDELT**        |           `https://www.gdeltproject.org/`           |
 
 
-## How to Run
-You can run the demo script in the directory by the following code.
+## How to Train
+To train the model for demo, run the following command:
 ```
 python main.py --dataset {DATASET}
 ```
+
+## How to Test
+To evaluate a trained model, please run:
+```
+python main.py --dataset {DATASET} --test --resume --name {CHECKPOINT_NAME}
+```
+
+
 
 
 
