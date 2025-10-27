@@ -33,7 +33,7 @@ We utilize four benchmark datasets for TKGC. To get started, download each datas
 ## How to Run
 You can run the demo script in the directory by the following code.
 ```
-python main.py --dataset icews14
+python main.py --dataset {DATASET}
 ```
 
 
