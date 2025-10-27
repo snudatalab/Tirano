@@ -13,6 +13,21 @@ import pickle
 
 # help Module for custom Dataloader
 class SimpleCustomBatch:
+    """
+    Lightweight container for batched samples produced by `collate_wrapper`.
+
+    Inputs (list of tuples):
+        Each item in the list is a tuple like:
+            (src_idx, rel_idx, target_idx, ts, ..., event_idx)
+        Only the first 4 fields and the last field (event_idx) are consumed.
+
+    Attributes:
+        src_idx (np.ndarray[int32], shape (B,))
+        rel_idx (np.ndarray[int32], shape (B,))
+        target_idx (np.ndarray[int32], shape (B,))
+        ts (np.ndarray[int32], shape (B,))
+        event_idx (np.ndarray[int32], shape (B,))
+    """
     def __init__(self, data):
         # print(data)
         transposed_data = list(zip(*data))
