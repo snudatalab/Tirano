@@ -16,6 +16,15 @@ import random
 # Logger
 # ---------------------------------------------------------
 def setup_logger(name):
+    """
+    Create and configure a file logger under ./log/{name}.log.
+
+    Args:
+        name (str): Run name for the logger and log file.
+
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
     cur_dir = os.getcwd()
     log_dir = os.path.join(cur_dir, 'log')
     if not os.path.exists(log_dir):
@@ -66,24 +75,27 @@ def get_dataset_stat(dataset):
 # ---------------------------------------------------------
 class NeighborFinder:
     """
-    adj: list or dict mapping
-      - list case: adj[u] = list of (neighbor_entity, relation_id, timestamp)
-      - dict case: adj[u] same as above, missing keys map to []
+    Temporal neighborhood sampler with multiple strategies.
 
-    sampling modes:
-      0 : uniform random WITH replacement (기존)
-      1 : first-k (리스트 앞에서 k개; 과거 위주)
-      2 : last-k  (리스트 뒤에서 k개; 최근 위주)
-      3 : 시간거리 가중 확률  ~ exp(-|Δt| / (time_granularity * weight_factor))
-      4 : 절대 시각 가중     ~ (t_i + 1)
-      5 : RTNS (관계별 alpha_r, beta) ~ exp(-alpha_r * |Δt|^beta)
-      6 : (NEW) sampling 3 × alpha_r  ~ exp(-|Δt|/τ) * alpha_r
-      7 : (NEW) 균등 랜덤(무중복)
-     -1 : 전체 사용 (truncate to last 200000)
+    Adjacency format:
+        - If list: adj[u] = list of (neighbor_entity, relation_id, timestamp)
+        - If dict: adj[u] may be missing -> treated as empty list
 
-    All probability sampling uses a safe chooser to avoid ValueError when p has zeros.
+    Sampling modes (self.sampling):
+        0 : uniform random WITH replacement
+        1 : first-k         (past-oriented if adjacency sorted ascending by time)
+        2 : last-k          (recent-oriented)
+        3 : time-distance   ~ exp(-|Δt| / (time_granularity * weight_factor))
+        4 : absolute time   ~ (t_i + 1)
+        5 : RTNS            ~ exp(-alpha_r * |Δt|^beta), relation-wise alpha
+        6 : hybrid          ~ exp(-|Δt|/τ) * alpha_r
+        7 : uniform random WITHOUT replacement
+       -1 : take ALL neighbors (truncated to last 200000)
+
+    Note:
+        All probabilistic modes rely on a safe chooser that handles
+        zero/invalid distributions without raising errors.
     """
-
     def __init__(self,
                  adj,
                  sampling=1,
@@ -191,19 +203,21 @@ class NeighborFinder:
     # ------------------------------------------------------------------
     def get_temporal_neighbor(self, obj_idx_l, ts_l, num_neighbors=20, rel_q_l=None):
         """
-        Inputs
-        ------
-        obj_idx_l : array-like of subject indices (B,)
-        ts_l      : array-like of query times   (B,)
-        rel_q_l   : (optional) array-like of query relations (B,) - not used by default paths
+        Sample temporal neighbors per source object at given query times.
 
-        Returns
-        -------
-        out_ngh_node_batch : (B, K) int32, -1 padded
-        out_ngh_eidx_batch : (B, K) int32, -1 padded  (relation ids)
-        out_ngh_t_batch    : (B, K) int32,  0 padded  (timestamps)
-        offset_l           : list of [start, end] per row (for legacy compatibility)
-        got_node_emb_l     : list of zeros (legacy compatibility)
+        Args:
+            obj_idx_l (array-like[int]): Source entity ids, shape (B,).
+            ts_l (array-like[int]): Query timestamps, shape (B,).
+            num_neighbors (int): Maximum K neighbors per source (padding/truncation applied).
+            rel_q_l (array-like[int] or None): Optional query relations (unused in default paths).
+
+        Returns:
+            tuple:
+                out_ngh_node_batch (np.ndarray[int32]): (B, K) neighbor entity ids, left-padded with -1.
+                out_ngh_eidx_batch (np.ndarray[int32]): (B, K) relation ids, left-padded with -1.
+                out_ngh_t_batch (np.ndarray[int32]): (B, K) neighbor timestamps, left-padded with 0.
+                offset_l (list[[int,int]]): Legacy offsets per row (start,end) in flattened view.
+                got_node_emb_l (list[int]): Legacy placeholders (always 0).
         """
         assert len(obj_idx_l) == len(ts_l)
         B = len(obj_idx_l)
