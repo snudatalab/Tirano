@@ -192,7 +192,7 @@ If you use this code, please cite the following paper.
 ```bibtex
 @inproceedings{lee2026tirano,
   title={TiRano: Tensorized Relation-aware Temporal Reasoning for Accurate Knowledge Graph Completion},
-  author={Lee, SeungJoo, Park, Yong-chan and Kang, U},
+  author={Lee, SeungJoo and Park, Yong-chan and Kang, U},
   booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2},
   year={2026}
 }
